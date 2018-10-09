@@ -207,7 +207,7 @@ static int libkvazaar_encode(AVCodecContext *avctx,
               0
             };
             av_image_copy(input_pic->data, dst_linesizes,
-                          frame->data, frame->linesize,
+                          (const uint8_t **)frame->data, frame->linesize,
                           frame->format, frame->width, frame->height);
         }
 
@@ -305,4 +305,6 @@ AVCodec ff_libkvazaar_encoder = {
     .close            = libkvazaar_close,
 
     .caps_internal    = FF_CODEC_CAP_INIT_THREADSAFE | FF_CODEC_CAP_INIT_CLEANUP,
+
+    .wrapper_name     = "libkvazaar",
 };

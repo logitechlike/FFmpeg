@@ -188,6 +188,7 @@ static int update_size(AVCodecContext *avctx, int w, int h)
 
         switch (s->pix_fmt) {
         case AV_PIX_FMT_YUV420P:
+        case AV_PIX_FMT_YUV420P10:
 #if CONFIG_VP9_DXVA2_HWACCEL
             *fmtp++ = AV_PIX_FMT_DXVA2_VLD;
 #endif
@@ -202,7 +203,6 @@ static int update_size(AVCodecContext *avctx, int w, int h)
             *fmtp++ = AV_PIX_FMT_VAAPI;
 #endif
             break;
-        case AV_PIX_FMT_YUV420P10:
         case AV_PIX_FMT_YUV420P12:
 #if CONFIG_VP9_NVDEC_HWACCEL
             *fmtp++ = AV_PIX_FMT_CUDA;
@@ -1644,8 +1644,10 @@ FF_ENABLE_DEPRECATION_WARNINGS
 #endif
         {
             ret = decode_tiles(avctx, data, size);
-            if (ret < 0)
+            if (ret < 0) {
+                ff_thread_report_progress(&s->s.frames[CUR_FRAME].tf, INT_MAX, 0);
                 return ret;
+            }
         }
 
         // Sum all counts fields into td[0].counts for tile threading

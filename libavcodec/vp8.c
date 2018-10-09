@@ -167,6 +167,22 @@ static VP8Frame *vp8_find_free_buffer(VP8Context *s)
     return frame;
 }
 
+static enum AVPixelFormat get_pixel_format(VP8Context *s)
+{
+    enum AVPixelFormat pix_fmts[] = {
+#if CONFIG_VP8_VAAPI_HWACCEL
+        AV_PIX_FMT_VAAPI,
+#endif
+#if CONFIG_VP8_NVDEC_HWACCEL
+        AV_PIX_FMT_CUDA,
+#endif
+        AV_PIX_FMT_YUV420P,
+        AV_PIX_FMT_NONE,
+    };
+
+    return ff_get_format(s->avctx, pix_fmts);
+}
+
 static av_always_inline
 int update_dimensions(VP8Context *s, int width, int height, int is_vp7)
 {
@@ -180,6 +196,13 @@ int update_dimensions(VP8Context *s, int width, int height, int is_vp7)
         ret = ff_set_dimensions(s->avctx, width, height);
         if (ret < 0)
             return ret;
+    }
+
+    if (!s->actually_webp && !is_vp7) {
+        s->pix_fmt = get_pixel_format(s);
+        if (s->pix_fmt < 0)
+            return AVERROR(EINVAL);
+        avctx->pix_fmt = s->pix_fmt;
     }
 
     s->mb_width  = (s->avctx->coded_width  + 15) / 16;
@@ -469,9 +492,11 @@ static void fade(uint8_t *dst, ptrdiff_t dst_linesize,
 {
     int i, j;
     for (j = 0; j < height; j++) {
+        const uint8_t *src2 = src + j * src_linesize;
+        uint8_t *dst2 = dst + j * dst_linesize;
         for (i = 0; i < width; i++) {
-            uint8_t y = src[j * src_linesize + i];
-            dst[j * dst_linesize + i] = av_clip_uint8(y + ((y * beta) >> 8) + alpha);
+            uint8_t y = src2[i];
+            dst2[i] = av_clip_uint8(y + ((y * beta) >> 8) + alpha);
         }
     }
 }
@@ -481,6 +506,9 @@ static int vp7_fade_frame(VP8Context *s, VP56RangeCoder *c)
     int alpha = (int8_t) vp8_rac_get_uint(c, 8);
     int beta  = (int8_t) vp8_rac_get_uint(c, 8);
     int ret;
+
+    if (c->end <= c->buffer && c->bits >= 0)
+        return AVERROR_INVALIDDATA;
 
     if (!s->keyframe && (alpha || beta)) {
         int width  = s->mb_width * 16;
@@ -633,6 +661,8 @@ static int vp7_decode_frame_header(VP8Context *s, const uint8_t *buf, int buf_si
             s->fade_present = vp8_rac_get(c);
     }
 
+    if (c->end <= c->buffer && c->bits >= 0)
+        return AVERROR_INVALIDDATA;
     /* E. Fading information for previous frame */
     if (s->fade_present && vp8_rac_get(c)) {
         if ((ret = vp7_fade_frame(s ,c)) < 0)
@@ -2598,18 +2628,7 @@ int vp78_decode_frame(AVCodecContext *avctx, void *data, int *got_frame,
     if (s->actually_webp) {
         // avctx->pix_fmt already set in caller.
     } else if (!is_vp7 && s->pix_fmt == AV_PIX_FMT_NONE) {
-        enum AVPixelFormat pix_fmts[] = {
-#if CONFIG_VP8_VAAPI_HWACCEL
-            AV_PIX_FMT_VAAPI,
-#endif
-#if CONFIG_VP8_NVDEC_HWACCEL
-            AV_PIX_FMT_CUDA,
-#endif
-            AV_PIX_FMT_YUV420P,
-            AV_PIX_FMT_NONE,
-        };
-
-        s->pix_fmt = ff_get_format(s->avctx, pix_fmts);
+        s->pix_fmt = get_pixel_format(s);
         if (s->pix_fmt < 0) {
             ret = AVERROR(EINVAL);
             goto err;

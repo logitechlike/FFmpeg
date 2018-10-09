@@ -204,10 +204,6 @@ static av_cold int amf_encode_init_hevc(AVCodecContext *avctx)
     AMF_ASSIGN_PROPERTY_BOOL(res, ctx->encoder, AMF_VIDEO_ENCODER_HEVC_MOTION_HALF_PIXEL, ctx->me_half_pel);
     AMF_ASSIGN_PROPERTY_BOOL(res, ctx->encoder, AMF_VIDEO_ENCODER_HEVC_MOTION_QUARTERPIXEL, ctx->me_quarter_pel);
 
-    // init encoder
-    res = ctx->encoder->pVtbl->Init(ctx->encoder, ctx->format, avctx->width, avctx->height);
-    AMF_RETURN_IF_FALSE(ctx, res == AMF_OK, AVERROR_BUG, "encoder->Init() failed with error %d\n", res);
-
     // init dynamic rate control params
     if (ctx->max_au_size)
         ctx->enforce_hrd = 1;
@@ -224,6 +220,10 @@ static av_cold int amf_encode_init_hevc(AVCodecContext *avctx)
     } else if (ctx->rate_control_mode == AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR) {
         av_log(ctx, AV_LOG_WARNING, "rate control mode is PEAK_CONSTRAINED_VBR but rc_max_rate is not set\n");
     }
+
+    // init encoder
+    res = ctx->encoder->pVtbl->Init(ctx->encoder, ctx->format, avctx->width, avctx->height);
+    AMF_RETURN_IF_FALSE(ctx, res == AMF_OK, AVERROR_BUG, "encoder->Init() failed with error %d\n", res);
 
     // init dynamic picture control params
     AMF_ASSIGN_PROPERTY_INT64(res, ctx->encoder, AMF_VIDEO_ENCODER_HEVC_MAX_AU_SIZE, ctx->max_au_size);
@@ -295,7 +295,6 @@ static av_cold int amf_encode_init_hevc(AVCodecContext *avctx)
 static const AVCodecDefault defaults[] = {
     { "refs",       "-1"  },
     { "aspect",     "0"   },
-    { "sar",        "0"   },
     { "b",          "2M"  },
     { "g",          "250" },
     { "slices",     "1"   },
@@ -307,7 +306,7 @@ static const AVClass hevc_amf_class = {
     .option = options,
     .version = LIBAVUTIL_VERSION_INT,
 };
-//TODO declare as HW encoder when available
+
 AVCodec ff_hevc_amf_encoder = {
     .name           = "hevc_amf",
     .long_name      = NULL_IF_CONFIG_SMALL("AMD AMF HEVC encoder"),
@@ -320,7 +319,8 @@ AVCodec ff_hevc_amf_encoder = {
     .priv_data_size = sizeof(AmfContext),
     .priv_class     = &hevc_amf_class,
     .defaults       = defaults,
-    .capabilities   = AV_CODEC_CAP_DELAY,
+    .capabilities   = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_HARDWARE,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
     .pix_fmts       = ff_amf_pix_fmts,
+    .wrapper_name   = "amf",
 };

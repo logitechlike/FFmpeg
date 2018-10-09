@@ -213,7 +213,6 @@ static av_cold int amf_encode_init_h264(AVCodecContext *avctx)
         }
     }
 
-
     if (ctx->rate_control_mode == AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP) {
         AMF_ASSIGN_PROPERTY_INT64(res, ctx->encoder, AMF_VIDEO_ENCODER_RATE_CONTROL_PREANALYSIS_ENABLE, AMF_VIDEO_ENCODER_PREENCODE_DISABLED);
         if (ctx->preanalysis)
@@ -223,10 +222,6 @@ static av_cold int amf_encode_init_h264(AVCodecContext *avctx)
     }
 
     AMF_ASSIGN_PROPERTY_INT64(res, ctx->encoder, AMF_VIDEO_ENCODER_QUALITY_PRESET, ctx->quality);
-
-    // Initialize Encoder
-    res = ctx->encoder->pVtbl->Init(ctx->encoder, ctx->format, avctx->width, avctx->height);
-    AMF_RETURN_IF_FALSE(ctx, res == AMF_OK, AVERROR_BUG, "encoder->Init() failed with error %d\n", res);
 
     // Dynamic parmaters
     AMF_ASSIGN_PROPERTY_INT64(res, ctx->encoder, AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD, ctx->rate_control_mode);
@@ -279,6 +274,11 @@ static av_cold int amf_encode_init_h264(AVCodecContext *avctx)
     } else if (ctx->rate_control_mode == AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR) {
         av_log(ctx, AV_LOG_WARNING, "rate control mode is PEAK_CONSTRAINED_VBR but rc_max_rate is not set\n");
     }
+
+    // Initialize Encoder
+    res = ctx->encoder->pVtbl->Init(ctx->encoder, ctx->format, avctx->width, avctx->height);
+    AMF_RETURN_IF_FALSE(ctx, res == AMF_OK, AVERROR_BUG, "encoder->Init() failed with error %d\n", res);
+
     // Enforce HRD, Filler Data, VBAQ, Frame Skipping, Deblocking Filter
     AMF_ASSIGN_PROPERTY_BOOL(res, ctx->encoder, AMF_VIDEO_ENCODER_ENFORCE_HRD, !!ctx->enforce_hrd);
     AMF_ASSIGN_PROPERTY_BOOL(res, ctx->encoder, AMF_VIDEO_ENCODER_FILLER_DATA_ENABLE, !!ctx->filler_data);
@@ -361,7 +361,6 @@ static av_cold int amf_encode_init_h264(AVCodecContext *avctx)
 static const AVCodecDefault defaults[] = {
     { "refs",       "-1"  },
     { "aspect",     "0"   },
-    { "sar",        "0"   },
     { "qmin",       "-1"  },
     { "qmax",       "-1"  },
     { "b",          "2M"  },
@@ -376,7 +375,7 @@ static const AVClass h264_amf_class = {
     .option = options,
     .version = LIBAVUTIL_VERSION_INT,
 };
-//TODO declare as HW encoder when available
+
 AVCodec ff_h264_amf_encoder = {
     .name           = "h264_amf",
     .long_name      = NULL_IF_CONFIG_SMALL("AMD AMF H.264 Encoder"),
@@ -389,7 +388,8 @@ AVCodec ff_h264_amf_encoder = {
     .priv_data_size = sizeof(AmfContext),
     .priv_class     = &h264_amf_class,
     .defaults       = defaults,
-    .capabilities   = AV_CODEC_CAP_DELAY,
+    .capabilities   = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_HARDWARE,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
     .pix_fmts       = ff_amf_pix_fmts,
+    .wrapper_name   = "amf",
 };

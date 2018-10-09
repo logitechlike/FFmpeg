@@ -56,6 +56,9 @@ static const HWContextType * const hw_table[] = {
 #if CONFIG_VIDEOTOOLBOX
     &ff_hwcontext_type_videotoolbox,
 #endif
+#if CONFIG_MEDIACODEC
+    &ff_hwcontext_type_mediacodec,
+#endif
     NULL,
 };
 
@@ -69,6 +72,7 @@ static const char *const hw_type_names[] = {
     [AV_HWDEVICE_TYPE_VAAPI]  = "vaapi",
     [AV_HWDEVICE_TYPE_VDPAU]  = "vdpau",
     [AV_HWDEVICE_TYPE_VIDEOTOOLBOX] = "videotoolbox",
+    [AV_HWDEVICE_TYPE_MEDIACODEC] = "mediacodec",
 };
 
 enum AVHWDeviceType av_hwdevice_find_type_by_name(const char *name)
@@ -479,8 +483,10 @@ int av_hwframe_get_buffer(AVBufferRef *hwframe_ref, AVFrame *frame, int flags)
 
         ret = av_hwframe_get_buffer(ctx->internal->source_frames,
                                     src_frame, 0);
-        if (ret < 0)
+        if (ret < 0) {
+            av_frame_free(&src_frame);
             return ret;
+        }
 
         ret = av_hwframe_map(frame, src_frame,
                              ctx->internal->source_allocation_map_flags);
@@ -640,6 +646,9 @@ int av_hwdevice_ctx_create_derived(AVBufferRef **dst_ref_ptr,
                     ret = AVERROR(ENOMEM);
                     goto fail;
                 }
+                ret = av_hwdevice_ctx_init(dst_ref);
+                if (ret < 0)
+                    goto fail;
                 goto done;
             }
             if (ret != AVERROR(ENOSYS))
@@ -652,10 +661,6 @@ int av_hwdevice_ctx_create_derived(AVBufferRef **dst_ref_ptr,
     goto fail;
 
 done:
-    ret = av_hwdevice_ctx_init(dst_ref);
-    if (ret < 0)
-        goto fail;
-
     *dst_ref_ptr = dst_ref;
     return 0;
 
@@ -864,4 +869,11 @@ fail:
         av_buffer_unref(&dst->internal->source_frames);
     av_buffer_unref(&dst_ref);
     return ret;
+}
+
+int ff_hwframe_map_replace(AVFrame *dst, const AVFrame *src)
+{
+    HWMapDescriptor *hwmap = (HWMapDescriptor*)dst->buf[0]->data;
+    av_frame_unref(hwmap->source);
+    return av_frame_ref(hwmap->source, src);
 }

@@ -493,7 +493,7 @@ static av_cold int vpx_init(AVCodecContext *avctx,
     enccfg.g_h            = avctx->height;
     enccfg.g_timebase.num = avctx->time_base.num;
     enccfg.g_timebase.den = avctx->time_base.den;
-    enccfg.g_threads      = avctx->thread_count;
+    enccfg.g_threads      = avctx->thread_count ? avctx->thread_count : av_cpu_count();
     enccfg.g_lag_in_frames= ctx->lag_in_frames;
 
     if (avctx->flags & AV_CODEC_FLAG_PASS1)
@@ -1199,6 +1199,7 @@ AVCodec ff_libvpx_vp8_encoder = {
     .pix_fmts       = (const enum AVPixelFormat[]){ AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUVA420P, AV_PIX_FMT_NONE },
     .priv_class     = &class_vp8,
     .defaults       = defaults,
+    .wrapper_name   = "libvpx",
 };
 #endif /* CONFIG_LIBVPX_VP8_ENCODER */
 
@@ -1229,5 +1230,6 @@ AVCodec ff_libvpx_vp9_encoder = {
     .priv_class     = &class_vp9,
     .defaults       = defaults,
     .init_static_data = ff_vp9_init_static,
+    .wrapper_name   = "libvpx",
 };
 #endif /* CONFIG_LIBVPX_VP9_ENCODER */

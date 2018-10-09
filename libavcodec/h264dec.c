@@ -51,7 +51,6 @@
 #include "mathops.h"
 #include "me_cmp.h"
 #include "mpegutils.h"
-#include "mpeg4video.h"
 #include "profiles.h"
 #include "rectangle.h"
 #include "thread.h"
@@ -316,7 +315,6 @@ static int h264_init_context(AVCodecContext *avctx, H264Context *h)
     h->flags                 = avctx->flags;
     h->poc.prev_poc_msb      = 1 << 16;
     h->recovery_frame        = -1;
-    h->x264_build            = -1;
     h->frame_recovered       = 0;
     h->poc.prev_frame_num    = -1;
     h->sei.frame_packing.arrangement_cancel_flag = -1;
@@ -611,9 +609,10 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
 
     if (!(avctx->flags2 & AV_CODEC_FLAG2_CHUNKS)) {
         h->current_slice = 0;
-        if (!h->first_field)
+        if (!h->first_field) {
             h->cur_pic_ptr = NULL;
-        ff_h264_sei_uninit(&h->sei);
+            ff_h264_sei_uninit(&h->sei);
+        }
     }
 
     if (h->nal_length_size == 4) {
@@ -840,9 +839,6 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
     AVFrame *src = srcp->f;
     int ret;
 
-    if (src->format == AV_PIX_FMT_VIDEOTOOLBOX && src->buf[0]->size == 1)
-        return AVERROR_INVALIDDATA;
-
     ret = av_frame_ref(dst, src);
     if (ret < 0)
         return ret;
@@ -859,6 +855,8 @@ static int is_extra(const uint8_t *buf, int buf_size)
 {
     int cnt= buf[5]&0x1f;
     const uint8_t *p= buf+6;
+    if (!cnt)
+        return 0;
     while(cnt--){
         int nalsize= AV_RB16(p) + 2;
         if(nalsize > buf_size - (p-buf) || (p[2] & 0x9F) != 7)
@@ -988,7 +986,7 @@ static int h264_decode_frame(AVCodecContext *avctx, void *data,
                                      &h->ps, &h->is_avc, &h->nal_length_size,
                                      avctx->err_recognition, avctx);
     }
-    if(h->is_avc && buf_size >= 9 && buf[0]==1 && buf[2]==0 && (buf[4]&0xFC)==0xFC && (buf[5]&0x1F) && buf[8]==0x67){
+    if (h->is_avc && buf_size >= 9 && buf[0]==1 && buf[2]==0 && (buf[4]&0xFC)==0xFC) {
         if (is_extra(buf, buf_size))
             return ff_h264_decode_extradata(buf, buf_size,
                                             &h->ps, &h->is_avc, &h->nal_length_size,
@@ -1038,6 +1036,7 @@ static const AVOption h264_options[] = {
     { "is_avc", "is avc", OFFSET(is_avc), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, 0 },
     { "nal_length_size", "nal_length_size", OFFSET(nal_length_size), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 4, 0 },
     { "enable_er", "Enable error resilience on damaged frames (unsafe)", OFFSET(enable_er), AV_OPT_TYPE_BOOL, { .i64 = -1 }, -1, 1, VD },
+    { "x264_build", "Assume this x264 version if no x264 version found in any SEI", OFFSET(x264_build), AV_OPT_TYPE_INT, {.i64 = -1}, -1, INT_MAX, VD },
     { NULL },
 };
 

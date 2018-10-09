@@ -168,6 +168,7 @@ HEVC_SAMPLES_444_8BIT =         \
 HEVC_SAMPLES_444_12BIT =        \
     IPCM_B_RExt_NEC             \
     PERSIST_RPARAM_A_RExt_Sony_1\
+    PERSIST_RPARAM_A_RExt_Sony_3\
     SAO_A_RExt_MediaTek_1       \
 
 
@@ -248,6 +249,9 @@ FATE_HEVC-$(call DEMDEC, HEVC, HEVC) += $(FATE_HEVC)
 FATE_HEVC-$(call DEMDEC, MOV, HEVC) += fate-hevc-extradata-reload
 
 fate-hevc-extradata-reload: CMD = framemd5 -i $(TARGET_SAMPLES)/hevc/extradata-reload-multi-stsd.mov -sws_flags bitexact
+
+fate-hevc-monochrome-crop: CMD = probeframes -show_entries frame=width,height:stream=width,height $(TARGET_SAMPLES)/hevc/hevc-monochrome.hevc
+FATE_HEVC_FFPROBE-$(call DEMDEC, HEVC, HEVC) += fate-hevc-monochrome-crop
 
 FATE_SAMPLES_AVCONV += $(FATE_HEVC-yes)
 FATE_SAMPLES_FFPROBE += $(FATE_HEVC_FFPROBE-yes)
